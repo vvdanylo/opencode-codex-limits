@@ -10,7 +10,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
   const text = displayText[props.locale];
   const status = props.status;
   const email = () => { status.now(); return props.accountEmail?.(); };
-  const reconnectNeeded = () => /session expired|rejected this session|сеанс.+закінчився|відхилив сеанс|\b401\b/i.test(status.error() ?? "");
+  const reconnectNeeded = () => /sign-in required|session expired|rejected this session|connect an openai oauth account|сеанс.+закінчився|відхилив сеанс|\b401\b/i.test(status.error() ?? "");
   const errorText = () => reconnectNeeded() && props.onReconnect
     ? props.locale === "uk" ? "Потрібен повторний вхід до OpenAI." : "OpenAI sign-in required."
     : status.error();

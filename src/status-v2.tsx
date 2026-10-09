@@ -3,9 +3,8 @@ import { validDisplayMode, validTimeFormat, type DisplaySettings } from "./displ
 import { createStatusController } from "./status-controller.ts";
 import { StatusView } from "./status-view.tsx";
 import type { UsageStatus } from "./status.tsx";
-import { getAuthEmail } from "./tui-v1.ts";
 
-export function registerStatusV2(context: any, load: () => Promise<UsageStatus>, locale: "en" | "uk" = "en", onReconnect?: () => void) {
+export function registerStatusV2(context: any, load: () => Promise<UsageStatus>, locale: "en" | "uk" = "en", onReconnect?: () => void, accountEmail?: () => string | undefined) {
   const [settings, updateSettings] = context.storage.store("codex-limits.display", {
     initial: {
       displayMode: validDisplayMode(context.options?.displayMode),
@@ -24,7 +23,8 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
     subscribe: (refresh) => {
       const stopSession = context.data.on("session.updated", refresh);
       const stopProvider = context.data.on("provider.updated", refresh);
-      return () => { stopSession?.(); stopProvider?.(); };
+      const stopCredential = context.data.on("credential.updated", refresh);
+      return () => { stopSession?.(); stopProvider?.(); stopCredential?.(); };
     },
   }, load);
   const colors = () => ({ text: context.theme.text.base, muted: "#b0bec5",
@@ -32,12 +32,12 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
   const removeSidebar = context.ui.slot({
     append: "sidebar.content",
     render: () => status.visible() && status.mode() !== "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} onReconnect={onReconnect} compact={status.mode() === "compact-sidebar"} /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact={status.mode() === "compact-sidebar"} /> : null,
   });
   const removeFooter = context.ui.slot({
     append: "prompt.footer",
     render: () => status.visible() && status.mode() === "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} onReconnect={onReconnect} compact /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact /> : null,
   });
   return { ...status, colors, dispose: () => {
     status.dispose();

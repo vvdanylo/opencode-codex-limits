@@ -1,14 +1,13 @@
 import { registerStatusV2 } from "./status-v2.tsx";
-import { displayText } from "./display.ts";
-import { loadStatus } from "./status-loader.ts";
+import { createSignal } from "solid-js";
+import { randomUUID } from "node:crypto";
+import { availableResetExpiries, displayText } from "./display.ts";
+import { codexRpc } from "./connection-rpc.ts";
+import { usageStatus } from "./usage-status.ts";
 import { openSettings } from "./settings-menu.tsx";
 import legacy, {
-  consumeResetCredit,
   formatExpiry,
   getLocale,
-  getValidToken,
-  loadResetCredits,
-  loadUsage,
   messages,
   type Locale,
   type ResetCredit,
@@ -58,6 +57,40 @@ const v2 = {
     const locale = getLocale();
     const text = messages[locale];
     const toast = context.ui.toast.show;
+    const rpc = context.client.rpc(codexRpc) as any;
+    const [accountEmail, setAccountEmail] = createSignal<string>();
+    const loadIdentity = async () => {
+      try { setAccountEmail((await rpc.identity({})).email); }
+      catch (error) { setAccountEmail(undefined); throw error; }
+    };
+    const loadUsage = () => rpc.usage({});
+    const loadResetCredits = () => rpc.credits({});
+    const loadCurrentStatus = async () => {
+      await loadIdentity();
+      const result = usageStatus(await loadUsage(), locale);
+      try {
+        const credits = await loadResetCredits();
+        result.resets = credits.available_count;
+        result.resetExpiries = availableResetExpiries(credits.credits);
+      } catch (error) {
+        console.error("[codex-limits] Could not load reset expiration", error);
+      }
+      return result;
+    };
+    let pendingRedemption: { creditId: string; requestId: string } | undefined;
+    const consumeCredit = async (creditId: string) => {
+      const requestId = pendingRedemption?.creditId === creditId ? pendingRedemption.requestId : randomUUID();
+      pendingRedemption = { creditId, requestId };
+      const { code } = await rpc.consume({ creditId, requestId });
+      if (["reset", "nothing_to_reset", "no_credit", "already_redeemed"].includes(code)) pendingRedemption = undefined;
+      switch (code) {
+        case "reset": return { message: text.resetSucceeded, variant: "success" as const };
+        case "nothing_to_reset": return { message: text.resetNotNeeded, variant: "info" as const };
+        case "no_credit": return { message: text.resetUnavailable, variant: "info" as const };
+        case "already_redeemed": return { message: text.resetAlreadyUsed, variant: "success" as const };
+        default: throw new Error(text.invalidResetResponse);
+      }
+    };
     const reconnect = () => {
       const connect = context.keymap.commands().find((command: any) =>
         command.slash?.name === "connect" || command.id === "provider.connect" || /^connect provider$/i.test(command.title ?? ""));
@@ -68,7 +101,7 @@ const v2 = {
       if (connect.id) context.keymap.dispatch(connect.id);
       else void connect.run();
     };
-    const status = registerStatusV2(context, () => loadStatus(locale, () => loadUsage(locale), () => loadResetCredits(locale)), locale, reconnect);
+    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect, accountEmail);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -111,7 +144,7 @@ const v2 = {
           run: async () => {
             try {
               toast({ message: text.loading, variant: "info", duration: 30000 });
-              const data = await loadUsage(locale);
+              const data = await loadUsage();
               void status.refresh();
               toast({ title: text.usageTitle, message: usageReport(data, locale), variant: "success", duration: 12000 });
             } catch (error) { showError(error); }
@@ -127,7 +160,7 @@ const v2 = {
           run: async () => {
             try {
               toast({ message: text.loadingResets, variant: "info", duration: 30000 });
-              const data = await loadResetCredits(locale);
+              const data = await loadResetCredits();
               const credits = availableCredits(data.credits);
               await context.ui.dialog.alert({
                 title: text.resetsCommandTitle,
@@ -149,8 +182,7 @@ const v2 = {
           run: async () => {
             try {
               toast({ message: text.loadingResets, variant: "info" });
-              const token = await getValidToken(locale);
-              const [usage, data] = await Promise.all([loadUsage(locale, token), loadResetCredits(locale, token)]);
+              const [usage, data] = await Promise.all([loadUsage(), loadResetCredits()]);
               const credits = availableCredits(data.credits);
               if (!credits.length) {
                 toast({ message: text.noResets, variant: "info" });
@@ -178,7 +210,7 @@ const v2 = {
               });
               if (!confirmed) return;
               toast({ message: text.applyingReset, variant: "info" });
-              const result = await consumeResetCredit(locale, credit.id, token);
+              const result = await consumeCredit(credit.id);
               toast({ ...result, duration: 10000 });
               void status.refresh();
             } catch (error) { showError(error); }
