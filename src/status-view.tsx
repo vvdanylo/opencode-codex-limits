@@ -38,7 +38,8 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
             {window.resetAt === undefined ? window.reset
               : formatLimitReset(window.resetAt, timeFormat(status.getSettings()), status.now(), props.locale)}
             {window.resetAt !== undefined && timeFormat(status.getSettings()) === "absolute" &&
-              <span style={{ fg: "#64b5f6" }}> · {formatLimitReset(window.resetAt, "countdown", status.now(), props.locale)}</span>}
+              <span style={{ fg: "#64b5f6" }}> ({formatLimitReset(window.resetAt, "countdown", status.now(), props.locale)
+                .replace(/^(?:in |через )/, "")})</span>}
           </text>
         </box>
       ))}
