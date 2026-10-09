@@ -57,16 +57,29 @@ const v2 = {
     const text = messages[locale];
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
-    // OpenCode's account picker displays credential labels. Add the email only
-    // to default labels; names chosen by the user remain untouched.
-    const labelAccounts = async () => {
+    const [accountSettings, updateAccountSettings] = context.storage.store("codex-limits.accounts", {
+      initial: { showEmail: true },
+    });
+    // The native picker displays saved credential labels. Restore only labels
+    // created by this plugin, and leave user-supplied names untouched.
+    const syncAccountLabels = async () => {
       const { accounts } = await rpc.accounts({}) as { accounts: Array<{ id: string; label: string; email: string }> };
       for (const account of accounts) {
-        if (!/^(?:OAuth|OpenAI(?: \d+)?)$/.test(account.label)) continue;
-        await context.client.credential.update({ credentialID: account.id, label: `${account.email} (${account.label})` });
+        const decorated = account.label.match(/^(.+@.+) \((OAuth|OpenAI(?: \d+)?)\)$/);
+        const base = /^(?:OAuth|OpenAI(?: \d+)?)$/.test(account.label)
+          ? account.label : decorated?.[1] === account.email ? decorated[2] : undefined;
+        if (!base) continue;
+        const label = accountSettings.showEmail ? `${account.email} (${base})` : base;
+        if (label !== account.label) await context.client.credential.update({ credentialID: account.id, label });
       }
     };
-    void labelAccounts().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
+    let labelQueue = Promise.resolve();
+    const queueAccountLabels = () => {
+      const next = labelQueue.then(syncAccountLabels);
+      labelQueue = next.catch(() => {});
+      return next;
+    };
+    void queueAccountLabels().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
     const loadIdentity = () => rpc.identity({});
     const loadUsage = () => rpc.usage({});
     const loadResetCredits = () => rpc.credits({});
@@ -123,6 +136,20 @@ const v2 = {
         context.keymap.layer(() => ({
       mode: "global",
       commands: [
+        {
+          id: "codex-account-emails",
+          title: "Toggle emails in connected OpenAI accounts",
+          group: "Codex",
+          palette: true,
+          slash: { name: "codex-account-emails" },
+          run: async () => {
+            try {
+              await updateAccountSettings((draft: { showEmail: boolean }) => { draft.showEmail = !draft.showEmail; });
+              await queueAccountLabels();
+              toast({ message: accountSettings.showEmail ? "Account emails shown" : "Account emails hidden", variant: "info" });
+            } catch (error) { showError(error); }
+          },
+        },
         {
           id: "codex-reconnect",
           title: "Reconnect OpenAI provider",
