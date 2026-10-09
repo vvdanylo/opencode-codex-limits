@@ -44,7 +44,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
       {(status.usage()?.windows ?? []).map((window) => (
         <box flexDirection="row" width="100%">
           <text width={7} fg="#64b5f6">{window.label}</text>
-          <text width={4} fg={color(window.remainingPercent)}>{window.remaining}</text>
+          <text width={5} fg={color(window.remainingPercent)}>{window.remaining}</text>
           <text fg={props.colors().muted} wrapMode="none">
             {window.resetAt === undefined ? window.reset
               : timeFormat(status.getSettings()) === "absolute" ? inlineDate(window.resetAt)

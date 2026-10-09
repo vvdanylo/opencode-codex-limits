@@ -59,8 +59,8 @@ const v2 = {
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
     const [accountEmail, setAccountEmail] = createSignal<string>();
-    const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email", {
-      initial: { showEmail: false },
+    const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email.v2", {
+      initial: { showEmail: true },
     });
     const loadIdentity = async () => {
       try { setAccountEmail((await rpc.identity({})).email); }
