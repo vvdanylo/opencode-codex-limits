@@ -34,8 +34,12 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
         <box flexDirection="row" width="100%">
           <text width={10} fg="#64b5f6">{window.label}</text>
           <text width={6} fg={color(window.remainingPercent)}>{window.remaining}</text>
-          <text fg={props.colors().muted}>{window.resetAt === undefined ? window.reset
-            : formatLimitReset(window.resetAt, timeFormat(status.getSettings()), status.now(), props.locale)}</text>
+          <text fg={props.colors().muted}>
+            {window.resetAt === undefined ? window.reset
+              : formatLimitReset(window.resetAt, timeFormat(status.getSettings()), status.now(), props.locale)}
+            {window.resetAt !== undefined && timeFormat(status.getSettings()) === "absolute" &&
+              <span style={{ fg: "#64b5f6" }}> · {formatLimitReset(window.resetAt, "countdown", status.now(), props.locale)}</span>}
+          </text>
         </box>
       ))}
       {(resets().count || resets().expiry) && <text>
