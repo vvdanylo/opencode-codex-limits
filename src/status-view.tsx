@@ -5,11 +5,12 @@ import type { StatusControls } from "./status-controller.ts";
 
 export type StatusColors = { text: any; muted: any; error: any; warning: any; success: any };
 
-export function StatusView(props: { status: StatusControls; compact?: boolean; locale: "en" | "uk"; colors: () => StatusColors; accountEmail?: () => string | undefined }) {
+export function StatusView(props: { status: StatusControls; compact?: boolean; locale: "en" | "uk"; colors: () => StatusColors; accountEmail?: () => string | undefined; onReconnect?: () => void }) {
   const [width, setWidth] = createSignal(80);
   const text = displayText[props.locale];
   const status = props.status;
   const email = () => { status.now(); return props.accountEmail?.(); };
+  const reconnectNeeded = () => /session expired|rejected this session|сеанс.+закінчився|відхилив сеанс|\b401\b/i.test(status.error() ?? "");
   const color = (remaining?: number) => remaining === undefined ? props.colors().muted
     : remaining < 20 ? props.colors().error : remaining < 50 ? props.colors().warning : props.colors().success;
   const resets = () => resetDisplay(status.getSettings(), status.usage()?.resets, status.usage()?.resetExpiries ?? [], status.now(), props.locale);
@@ -39,6 +40,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
         <span style={{ fg: resets().urgent ? props.colors().error : props.colors().muted }}>{resets().expiry}</span>
       </text>}
       {!status.usage() && <text>{status.error() ?? text.loading}</text>}
+      {reconnectNeeded() && props.onReconnect && <text fg={props.colors().warning} onMouseUp={props.onReconnect}>[ Reconnect OpenAI ]</text>}
     </box>
   }>
     <text width="100%" wrapMode="none" onSizeChange={function () { setWidth(this.width); }}>
@@ -48,6 +50,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
         <span>{separator(index)}{label(window.label)}:{tight() ? "" : " "}<span style={{ fg: color(window.remainingPercent) }}>{window.remaining}</span></span>
       ))}
       {!status.usage() && <span> · {status.error() ?? text.loading}</span>}
+      {reconnectNeeded() && props.onReconnect && <span> · /codex-reconnect</span>}
       {compactResets().count && <span> · {compactResets().count}</span>}
       {compactResets().expiry && <span style={{ fg: resets().urgent ? props.colors().error : props.colors().muted }}> · {compactResets().expiry}</span>}
     </text>

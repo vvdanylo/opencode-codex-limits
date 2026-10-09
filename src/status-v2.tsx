@@ -5,7 +5,7 @@ import { StatusView } from "./status-view.tsx";
 import type { UsageStatus } from "./status.tsx";
 import { getAuthEmail } from "./tui-v1.ts";
 
-export function registerStatusV2(context: any, load: () => Promise<UsageStatus>, locale: "en" | "uk" = "en") {
+export function registerStatusV2(context: any, load: () => Promise<UsageStatus>, locale: "en" | "uk" = "en", onReconnect?: () => void) {
   const [settings, updateSettings] = context.storage.store("codex-limits.display", {
     initial: {
       displayMode: validDisplayMode(context.options?.displayMode),
@@ -21,19 +21,23 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
     save: (next) => updateSettings((draft: DisplaySettings) => { Object.assign(draft, next); }),
     modes: ["panel", "compact-sidebar", "compact-footer", "hidden"],
     active: () => context.ui.model.current()?.providerID === "openai",
-    subscribe: (refresh) => context.data.on("session.updated", refresh),
+    subscribe: (refresh) => {
+      const stopSession = context.data.on("session.updated", refresh);
+      const stopProvider = context.data.on("provider.updated", refresh);
+      return () => { stopSession?.(); stopProvider?.(); };
+    },
   }, load);
   const colors = () => ({ text: context.theme.text.base, muted: context.theme.text.base,
     error: "#f44336", warning: "#ffb300", success: "#00c853" });
   const removeSidebar = context.ui.slot({
     append: "sidebar.content",
     render: () => status.visible() && status.mode() !== "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} compact={status.mode() === "compact-sidebar"} /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} onReconnect={onReconnect} compact={status.mode() === "compact-sidebar"} /> : null,
   });
   const removeFooter = context.ui.slot({
     append: "prompt.footer",
     render: () => status.visible() && status.mode() === "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} compact /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} onReconnect={onReconnect} compact /> : null,
   });
   return { ...status, colors, dispose: () => {
     status.dispose();

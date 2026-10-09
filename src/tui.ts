@@ -58,7 +58,17 @@ const v2 = {
     const locale = getLocale();
     const text = messages[locale];
     const toast = context.ui.toast.show;
-    const status = registerStatusV2(context, () => loadStatus(locale, () => loadUsage(locale), () => loadResetCredits(locale)), locale);
+    const reconnect = () => {
+      const connect = context.keymap.commands().find((command: any) =>
+        command.slash?.name === "connect" || command.id === "provider.connect" || /^connect provider$/i.test(command.title ?? ""));
+      if (!connect) {
+        toast({ message: "Open the Connect provider dialog in OpenCode to reconnect OpenAI.", variant: "warning" });
+        return;
+      }
+      if (connect.id) context.keymap.dispatch(connect.id);
+      else void connect.run();
+    };
+    const status = registerStatusV2(context, () => loadStatus(locale, () => loadUsage(locale), () => loadResetCredits(locale)), locale, reconnect);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -75,6 +85,14 @@ const v2 = {
         context.keymap.layer(() => ({
       mode: "global",
       commands: [
+        {
+          id: "codex-reconnect",
+          title: "Reconnect OpenAI provider",
+          group: "Codex",
+          palette: true,
+          slash: { name: "codex-reconnect" },
+          run: reconnect,
+        },
         {
           id: "codex-settings",
           title: labels.settings,
