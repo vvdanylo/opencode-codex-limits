@@ -27,8 +27,8 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
       return () => { stopSession?.(); stopProvider?.(); };
     },
   }, load);
-  const colors = () => ({ text: context.theme.text.base, muted: context.theme.text.base,
-    error: "#f44336", warning: "#ffb300", success: "#00c853" });
+  const colors = () => ({ text: context.theme.text.base, muted: "#b0bec5",
+    error: "#ef5350", warning: "#ffb300", success: "#00c853" });
   const removeSidebar = context.ui.slot({
     append: "sidebar.content",
     render: () => status.visible() && status.mode() !== "compact-footer"
