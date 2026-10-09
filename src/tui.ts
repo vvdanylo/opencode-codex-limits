@@ -74,6 +74,7 @@ const v2 = {
     const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email.v2", {
       initial: { showEmail: true },
     });
+    const [showEmail, setShowEmail] = createSignal(emailSettings.showEmail !== false);
     const loadIdentity = async () => {
       try {
         const email = (await within(rpc.identity({}), 5_000, "OpenAI identity"))?.email;
@@ -124,7 +125,7 @@ const v2 = {
       else void connect.run();
     };
     const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect,
-      () => emailSettings.showEmail !== false ? accountEmail() : undefined);
+      () => showEmail() ? accountEmail() : undefined);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message
@@ -150,10 +151,12 @@ const v2 = {
           palette: true,
           slash: { name: "codex-account-emails" },
           run: async () => {
-            const next = emailSettings.showEmail === false;
+            const next = !showEmail();
             try {
               if (next) await loadIdentity();
               await updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = next; });
+              setShowEmail(next);
+              status.invalidate();
               toast({ message: next ? "Usage email shown" : "Usage email hidden", variant: "info" });
             } catch (error) { showError(error); }
           },

@@ -14,6 +14,7 @@ export function createStatusController(input: {
   const [usage, setUsage] = createSignal<UsageStatus>();
   const [error, setError] = createSignal<string>();
   const [now, setNow] = createSignal(Date.now());
+  const [renderVersion, setRenderVersion] = createSignal(0);
   let busy = false;
   let disposed = false;
   let pending = Promise.resolve();
@@ -59,7 +60,8 @@ export function createStatusController(input: {
   timer.unref?.();
   const unsubscribe = input.subscribe(() => void refresh());
   return {
-    usage, error, now, mode, visible, refresh, ensureLoaded, getSettings, modes: input.modes,
+    usage, error, now, renderVersion, mode, visible, refresh, ensureLoaded, getSettings, modes: input.modes,
+    invalidate: () => setRenderVersion((version) => version + 1),
     setMode: async (value: DisplayMode) => {
       if (!validDisplayMode(value) || !input.modes.includes(value)) throw new Error(`Unsupported display mode: ${value}`);
       await update((next) => { next.displayMode = value; next.showPanel = value !== "hidden"; });
