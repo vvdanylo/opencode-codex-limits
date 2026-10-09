@@ -29,6 +29,7 @@ export default {
         const auth = await credential();
         const response = await fetch(`${API_BASE}${pathname}`, {
           ...init,
+          signal: AbortSignal.timeout(12_000),
           headers: { Authorization: `Bearer ${auth.access}`, Accept: "application/json", "User-Agent": "codex-cli", ...init?.headers },
         });
         if (!response.ok) throw new Error(response.status === 401 ? "OpenAI sign-in required (401)." : `OpenAI usage request failed (${response.status}).`);

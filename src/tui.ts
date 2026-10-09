@@ -19,6 +19,18 @@ type UsageWindow = {
   reset_at?: number;
 };
 
+async function within<T>(request: Promise<T>, milliseconds: number, name: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      request,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${name} timed out.`)), milliseconds);
+      }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 function usageReport(data: any, locale: Locale): string {
   const text = messages[locale];
   if (!data.rate_limit) throw new Error(text.missingRateLimit);
@@ -64,14 +76,16 @@ const v2 = {
     });
     const [showEmail, setShowEmail] = createSignal(emailSettings.showEmail !== false);
     const loadIdentity = async () => {
-      try { setAccountEmail((await rpc.identity({})).email); }
+      try { setAccountEmail((await within(rpc.identity({}), 5_000, "OpenAI identity")).email); }
       catch (error) { setAccountEmail(undefined); throw error; }
     };
-    const loadUsage = () => rpc.usage({});
-    const loadResetCredits = () => rpc.credits({});
+    const loadUsage = () => within(rpc.usage({}), 12_000, "Codex usage");
+    const loadResetCredits = () => within(rpc.credits({}), 3_000, "Reset credits");
     const loadCurrentStatus = async () => {
-      await loadIdentity();
-      const result = usageStatus(await loadUsage(), locale);
+      const [identity, usage] = await Promise.allSettled([loadIdentity(), loadUsage()]);
+      if (identity.status === "rejected") console.error("[codex-limits] Could not load account email", identity.reason);
+      if (usage.status === "rejected") throw usage.reason;
+      const result = usageStatus(usage.value, locale);
       try {
         const credits = await loadResetCredits();
         result.resets = credits.available_count;
