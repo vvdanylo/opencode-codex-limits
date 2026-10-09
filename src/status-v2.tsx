@@ -3,6 +3,7 @@ import { validDisplayMode, validTimeFormat, type DisplaySettings } from "./displ
 import { createStatusController } from "./status-controller.ts";
 import { StatusView } from "./status-view.tsx";
 import type { UsageStatus } from "./status.tsx";
+import { getAuthEmail } from "./tui-v1.ts";
 
 export function registerStatusV2(context: any, load: () => Promise<UsageStatus>, locale: "en" | "uk" = "en") {
   const [settings, updateSettings] = context.storage.store("codex-limits.display", {
@@ -27,12 +28,12 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
   const removeSidebar = context.ui.slot({
     append: "sidebar.content",
     render: () => status.visible() && status.mode() !== "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} compact={status.mode() === "compact-sidebar"} /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} compact={status.mode() === "compact-sidebar"} /> : null,
   });
   const removeFooter = context.ui.slot({
     append: "prompt.footer",
     render: () => status.visible() && status.mode() === "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} compact /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={getAuthEmail} compact /> : null,
   });
   return { ...status, colors, dispose: () => {
     status.dispose();

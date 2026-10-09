@@ -25,8 +25,10 @@ export const messages = {
   en: {
     missingAuth: "Could not find OpenCode/Codex auth.json.",
     missingAccessToken: (authPath: string) => `Access token not found in ${authPath}.`,
-    sessionExpired: "OpenAI session expired. Reconnect OpenAI in OpenCode.",
-    usageRequestFailed: (status: number) => `Usage API request failed (${status}).`,
+    sessionExpired: "OpenAI session expired. Run `opencode auth login openai` to reconnect.",
+    usageRequestFailed: (status: number) => status === 401
+      ? "OpenAI rejected this session (401). Run `opencode auth login openai` to reconnect."
+      : `Usage API request failed (${status}).`,
     missingRateLimit: "The API response did not contain rate_limit.",
     missingWindows: "The API response did not contain usage limit windows.",
     availableResets: (count: number) => `${count} reset${count === 1 ? "" : "s"} available`,
@@ -45,7 +47,9 @@ export const messages = {
     resetAlreadyUsed: "This reset request was already completed.",
     invalidResetResponse: "Unexpected reset response from OpenAI.",
     resetRequestFailed: (status: number) => `Reset request failed (${status}).`,
-    resetsRequestFailed: (status: number) => `Could not load resets (${status}).`,
+    resetsRequestFailed: (status: number) => status === 401
+      ? "OpenAI rejected this session (401). Run `opencode auth login openai` to reconnect."
+      : `Could not load resets (${status}).`,
     resetsCommandTitle: "List Codex resets",
     resetsCommandDescription: "Show available banked resets",
     resetCommandTitle: "Use a Codex reset",
@@ -67,8 +71,10 @@ export const messages = {
   uk: {
     missingAuth: "Не знайдено auth.json OpenCode/Codex.",
     missingAccessToken: (authPath: string) => `Не знайдено токен доступу у ${authPath}.`,
-    sessionExpired: "Сеанс OpenAI закінчився. Підключіть OpenAI в OpenCode повторно.",
-    usageRequestFailed: (status: number) => `Помилка запиту до API лімітів (${status}).`,
+    sessionExpired: "Сеанс OpenAI закінчився. Для повторного входу виконайте `opencode auth login openai`.",
+    usageRequestFailed: (status: number) => status === 401
+      ? "OpenAI відхилив сеанс (401). Для повторного входу виконайте `opencode auth login openai`."
+      : `Помилка запиту до API лімітів (${status}).`,
     missingRateLimit: "У відповіді API немає rate_limit.",
     missingWindows: "У відповіді API немає вікон лімітів використання.",
     availableResets: (count: number) => `Доступно скидань: ${count}`,
@@ -87,7 +93,9 @@ export const messages = {
     resetAlreadyUsed: "Цей запит на скидання вже виконано.",
     invalidResetResponse: "Неочікувана відповідь OpenAI на запит скидання.",
     resetRequestFailed: (status: number) => `Не вдалося виконати скидання (${status}).`,
-    resetsRequestFailed: (status: number) => `Не вдалося отримати скидання (${status}).`,
+    resetsRequestFailed: (status: number) => status === 401
+      ? "OpenAI відхилив сеанс (401). Для повторного входу виконайте `opencode auth login openai`."
+      : `Не вдалося отримати скидання (${status}).`,
     resetsCommandTitle: "Список скидань Codex",
     resetsCommandDescription: "Показати доступні збережені скидання",
     resetCommandTitle: "Використати скидання Codex",
@@ -158,6 +166,22 @@ function getAuthFilePath(): string {
   }
 
   return openCodePath;
+}
+
+export function getAuthEmail(): string | undefined {
+  try {
+    const authPath = getAuthFilePath();
+    if (!authPath) return undefined;
+    const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
+    const tokens = auth.openai ?? auth.tokens ?? auth;
+    const jwt = tokens.id_token ?? tokens.access ?? tokens.access_token;
+    if (typeof jwt !== "string") return undefined;
+    const claims = JSON.parse(Buffer.from(jwt.split(".")[1] ?? "", "base64url").toString("utf8"));
+    const email = claims.email ?? claims["https://api.openai.com/profile"]?.email;
+    return typeof email === "string" && email.includes("@") ? email : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function getValidToken(locale: Locale): Promise<string> {
@@ -349,7 +373,7 @@ const plugin = {
       showResets: options?.showResets === true,
       showResetExpiry: options?.showResetExpiry !== false,
       timeFormat: validTimeFormat(options?.timeFormat),
-    }, locale);
+    }, locale, getAuthEmail);
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[codex-limits]", error);

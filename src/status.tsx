@@ -7,7 +7,7 @@ import { StatusView } from "./status-view.tsx";
 export type UsageWindow = { label: string; remaining: string; remainingPercent?: number; reset: string; resetAt?: number };
 export type UsageStatus = { windows: UsageWindow[]; resets?: number; resetExpiries?: number[] };
 
-export function registerStatus(api: any, load: () => Promise<UsageStatus>, defaults: DisplaySettings, locale: "en" | "uk" = "en") {
+export function registerStatus(api: any, load: () => Promise<UsageStatus>, defaults: DisplaySettings, locale: "en" | "uk" = "en", accountEmail?: () => string | undefined) {
   const get = (key: string, fallback: any) => api.kv?.get?.(`codex-limits.${key}`, fallback) ?? fallback;
   const [settings, setSettings] = createSignal<DisplaySettings>({
     displayMode: validDisplayMode(get("displayMode", defaults.displayMode)),
@@ -30,7 +30,7 @@ export function registerStatus(api: any, load: () => Promise<UsageStatus>, defau
     error: api.theme?.current?.error, warning: api.theme?.current?.warning, success: api.theme?.current?.success });
   api.slots?.register?.({ slots: {
     sidebar_content: () => status.visible()
-      ? <StatusView status={status} locale={locale} colors={colors} compact={status.mode() === "compact-sidebar"} /> : null,
+      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} compact={status.mode() === "compact-sidebar"} /> : null,
   } });
   api.lifecycle?.onDispose?.(status.dispose);
   return { ...status, colors, togglePanel: async () => {

@@ -5,10 +5,11 @@ import type { StatusControls } from "./status-controller.ts";
 
 export type StatusColors = { text: any; muted: any; error: any; warning: any; success: any };
 
-export function StatusView(props: { status: StatusControls; compact?: boolean; locale: "en" | "uk"; colors: () => StatusColors }) {
+export function StatusView(props: { status: StatusControls; compact?: boolean; locale: "en" | "uk"; colors: () => StatusColors; accountEmail?: () => string | undefined }) {
   const [width, setWidth] = createSignal(80);
   const text = displayText[props.locale];
   const status = props.status;
+  const email = () => { status.now(); return props.accountEmail?.(); };
   const color = (remaining?: number) => remaining === undefined ? props.colors().muted
     : remaining < 20 ? props.colors().error : remaining < 50 ? props.colors().warning : props.colors().success;
   const resets = () => resetDisplay(status.getSettings(), status.usage()?.resets, status.usage()?.resetExpiries ?? [], status.now(), props.locale);
@@ -24,6 +25,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
   return <Show when={props.compact} fallback={
     <box flexDirection="column" width="100%" paddingTop={1}>
       <text fg={props.colors().text}>{text.usage}</text>
+      {email() && <text fg={props.colors().muted}>{email()}</text>}
       {(status.usage()?.windows ?? []).map((window) => (
         <box flexDirection="row" width="100%">
           <text width={10}>{window.label}</text>
@@ -41,6 +43,7 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
   }>
     <text width="100%" wrapMode="none" onSizeChange={function () { setWidth(this.width); }}>
       {prefix()}
+      {email() && <span> · {email()}</span>}
       {(status.usage()?.windows ?? []).map((window, index) => (
         <span>{separator(index)}{label(window.label)}:{tight() ? "" : " "}<span style={{ fg: color(window.remainingPercent) }}>{window.remaining}</span></span>
       ))}
