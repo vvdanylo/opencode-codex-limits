@@ -36,6 +36,9 @@ export function createStatusController(input: {
       }
     } finally { busy = false; }
   };
+  const ensureLoaded = () => {
+    if (!usage() && !error() && !busy) void refresh();
+  };
   const update = (change: (settings: DisplaySettings) => void) => {
     const operation = pending.then(async () => {
       if (disposed) return;
@@ -56,7 +59,7 @@ export function createStatusController(input: {
   timer.unref?.();
   const unsubscribe = input.subscribe(() => void refresh());
   return {
-    usage, error, now, mode, visible, refresh, getSettings, modes: input.modes,
+    usage, error, now, mode, visible, refresh, ensureLoaded, getSettings, modes: input.modes,
     setMode: async (value: DisplayMode) => {
       if (!validDisplayMode(value) || !input.modes.includes(value)) throw new Error(`Unsupported display mode: ${value}`);
       await update((next) => { next.displayMode = value; next.showPanel = value !== "hidden"; });

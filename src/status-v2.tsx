@@ -31,13 +31,19 @@ export function registerStatusV2(context: any, load: () => Promise<UsageStatus>,
     error: "#ef5350", warning: "#ffb300", success: "#00c853" });
   const removeSidebar = context.ui.slot({
     append: "sidebar.content",
-    render: () => status.visible() && status.mode() !== "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact={status.mode() === "compact-sidebar"} /> : null,
+    render: () => {
+      if (!status.visible() || status.mode() === "compact-footer") return null;
+      queueMicrotask(status.ensureLoaded);
+      return <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact={status.mode() === "compact-sidebar"} />;
+    },
   });
   const removeFooter = context.ui.slot({
     append: "prompt.footer",
-    render: () => status.visible() && status.mode() === "compact-footer"
-      ? <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact /> : null,
+    render: () => {
+      if (!status.visible() || status.mode() !== "compact-footer") return null;
+      queueMicrotask(status.ensureLoaded);
+      return <StatusView status={status} locale={locale} colors={colors} accountEmail={accountEmail} onReconnect={onReconnect} compact />;
+    },
   });
   return { ...status, colors, dispose: () => {
     status.dispose();
