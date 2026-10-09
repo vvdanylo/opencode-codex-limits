@@ -59,32 +59,8 @@ const v2 = {
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
     const [accountEmail, setAccountEmail] = createSignal<string>();
-    // Reset the earlier default-on preference; account names stay private by default.
-    const [accountSettings, updateAccountSettings] = context.storage.store("codex-limits.account-labels.v2", {
+    const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email", {
       initial: { showEmail: false },
-    });
-    // The native picker displays saved credential labels. Restore only labels
-    // created by this plugin, and leave user-supplied names untouched.
-    const syncAccountLabels = async (showEmail: boolean) => {
-      const { accounts } = await rpc.accounts({}) as { accounts: Array<{ id: string; label: string; email: string }> };
-      for (const account of accounts) {
-        const decorated = account.label.match(/^(.+@.+) \((OAuth|OpenAI(?: \d+)?)\)$/);
-        const base = /^(?:OAuth|OpenAI(?: \d+)?)$/.test(account.label)
-          ? account.label : decorated?.[1] === account.email ? decorated[2] : undefined;
-        if (!base) continue;
-        const label = showEmail ? `${account.email} (${base})` : base;
-        if (label !== account.label) await context.client.credential.update({ credentialID: account.id, label });
-      }
-    };
-    let labelQueue = Promise.resolve();
-    const queueAccountLabels = (showEmail = accountSettings.showEmail) => {
-      const next = labelQueue.then(() => syncAccountLabels(showEmail));
-      labelQueue = next.catch(() => {});
-      return next;
-    };
-    void queueAccountLabels().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
-    const stopCredentialLabels = context.data.on("credential.updated", () => {
-      void queueAccountLabels().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
     });
     const loadIdentity = async () => {
       try { setAccountEmail((await rpc.identity({})).email); }
@@ -128,7 +104,8 @@ const v2 = {
       if (connect.id) context.keymap.dispatch(connect.id);
       else void connect.run();
     };
-    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect, accountEmail);
+    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect,
+      () => emailSettings.showEmail ? accountEmail() : undefined);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message
@@ -149,16 +126,15 @@ const v2 = {
       commands: [
         {
           id: "codex-account-emails",
-          title: "Toggle emails in connected OpenAI accounts",
+          title: "Toggle active email in the usage panel",
           group: "Codex",
           palette: true,
           slash: { name: "codex-account-emails" },
           run: async () => {
             try {
-              const showEmail = !accountSettings.showEmail;
-              await queueAccountLabels(showEmail);
-              await updateAccountSettings((draft: { showEmail: boolean }) => { draft.showEmail = showEmail; });
-              toast({ message: accountSettings.showEmail ? "Account emails shown" : "Account emails hidden", variant: "info" });
+              const showEmail = !emailSettings.showEmail;
+              await updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = showEmail; });
+              toast({ message: showEmail ? "Usage email shown" : "Usage email hidden", variant: "info" });
             } catch (error) { showError(error); }
           },
         },
@@ -265,7 +241,7 @@ const v2 = {
         return null;
       },
     });
-    return () => { stopCredentialLabels?.(); status.dispose(); };
+    return () => status.dispose();
   },
 };
 

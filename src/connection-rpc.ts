@@ -5,25 +5,6 @@ export const codexRpc = {
       input: { type: "object", properties: {}, additionalProperties: false },
       output: { type: "object", properties: { email: { type: "string" } }, additionalProperties: false },
     },
-    accounts: {
-      input: { type: "object", properties: {}, additionalProperties: false },
-      output: {
-        type: "object",
-        properties: {
-          accounts: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { id: { type: "string" }, label: { type: "string" }, email: { type: "string" } },
-              required: ["id", "label", "email"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["accounts"],
-        additionalProperties: false,
-      },
-    },
     usage: {
       input: { type: "object", properties: {}, additionalProperties: false },
       output: { type: "object", additionalProperties: true },

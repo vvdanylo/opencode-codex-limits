@@ -36,18 +36,6 @@ export default {
       };
       await context.rpc.register(codexRpc, {
         identity: async () => ({ email: emailFromToken((await credential()).access) }),
-        accounts: async () => {
-          const { data } = await context.integration.get({ integrationID: "openai" });
-          const accounts = await Promise.all(data.connections.map(async (connection) => {
-            if (connection.type !== "credential" || connection.method !== "oauth") return undefined;
-            try {
-              const value = await context.integration.connection.resolve(connection);
-              const email = value?.type === "oauth" ? emailFromToken(value.access) : undefined;
-              return email ? { id: connection.id, label: connection.label, email } : undefined;
-            } catch { return undefined; }
-          }));
-          return { accounts: accounts.filter((account): account is NonNullable<typeof account> => Boolean(account)) };
-        },
         usage: async () => request("/usage"),
         credits: async () => request("/rate-limit-reset-credits"),
         consume: async ({ creditId, requestId }: { creditId: string; requestId: string }) => {
