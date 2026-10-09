@@ -1,5 +1,4 @@
 import { registerStatusV2 } from "./status-v2.tsx";
-import { createSignal } from "solid-js";
 import { randomUUID } from "node:crypto";
 import { availableResetExpiries, displayText } from "./display.ts";
 import { codexRpc } from "./connection-rpc.ts";
@@ -70,19 +69,32 @@ const v2 = {
     const text = messages[locale];
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
-    const [accountEmail, setAccountEmail] = createSignal<string>();
     const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email.v2", {
       initial: { showEmail: true },
     });
-    const [showEmail, setShowEmail] = createSignal(emailSettings.showEmail !== false);
+    // Use the host's reactive store: package-local Solid signals can belong to
+    // a different runtime than the one rendering OpenCode's sidebar.
+    const [emailState, updateEmailState] = context.storage.memory("codex-limits.usage-email.state.v2", {
+      initial: { email: "", showEmail: emailSettings.showEmail !== false },
+    });
+    updateEmailState((draft: { email: string; showEmail: boolean }) => {
+      draft.email = "";
+      draft.showEmail = emailSettings.showEmail !== false;
+    });
+    const accountEmail = () => emailState.email || undefined;
+    const showEmail = () => emailState.showEmail;
+    let pendingEmailSettings = Promise.resolve();
     const loadIdentity = async () => {
       try {
         const email = (await within(rpc.identity({}), 5_000, "OpenAI identity"))?.email;
         if (typeof email !== "string" || !email.includes("@")) throw new Error("Active OpenAI account email is unavailable.");
-        setAccountEmail(email);
+        updateEmailState((draft: { email: string }) => { draft.email = email; });
         return email;
       }
-      catch (error) { setAccountEmail(undefined); throw error; }
+      catch (error) {
+        updateEmailState((draft: { email: string }) => { draft.email = ""; });
+        throw error;
+      }
     };
     const loadUsage = () => within(rpc.usage({}), 12_000, "Codex usage");
     const loadResetCredits = () => within(rpc.credits({}), 3_000, "Reset credits");
@@ -152,12 +164,13 @@ const v2 = {
           slash: { name: "codex-account-emails" },
           run: async () => {
             const next = !showEmail();
+            updateEmailState((draft: { showEmail: boolean }) => { draft.showEmail = next; });
+            toast({ message: next ? "Usage email shown" : "Usage email hidden", variant: "info" });
+            const save = pendingEmailSettings.then(() =>
+              updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = next; }));
+            pendingEmailSettings = save.catch(() => {});
             try {
-              if (next) await loadIdentity();
-              await updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = next; });
-              setShowEmail(next);
-              status.invalidate();
-              toast({ message: next ? "Usage email shown" : "Usage email hidden", variant: "info" });
+              await Promise.all([save, next && !accountEmail() ? loadIdentity() : Promise.resolve()]);
             } catch (error) { showError(error); }
           },
         },

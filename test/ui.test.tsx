@@ -4,12 +4,81 @@ import { test } from "node:test";
 import { render } from "@opentui/solid";
 import { createTestRenderer } from "@opentui/core/testing";
 import { createSignal } from "solid-js";
+import { createStore, produce } from "solid-js/store";
 import { createSettingsMenu, SettingsDialog } from "../src/settings-menu.tsx";
 import { createStatusController } from "../src/status-controller.ts";
 import { StatusView } from "../src/status-view.tsx";
 import { formatLimitReset, type DisplaySettings } from "../src/display.ts";
+import plugin from "../src/tui.ts";
 
 const colors = () => ({ text: "white", muted: "gray", error: "red", warning: "yellow", success: "green" });
+
+for (const displayMode of ["panel", "compact-sidebar", "compact-footer"]) test(`email toggles immediately in ${displayMode} without refetching or waiting for storage`, async () => {
+  const ui = await createTestRenderer({ width: 110, height: 20 });
+  let dispose: () => void;
+  let toggle: () => Promise<void>;
+  let identityCalls = 0;
+  let releaseSave: () => void;
+  const saving = new Promise<void>((resolve) => { releaseSave = resolve; });
+  const saved: boolean[] = [];
+  render(() => {
+    let sidebar: () => unknown;
+    dispose = plugin.setup({
+      options: { displayMode },
+      client: { rpc: () => ({
+        identity: async () => { identityCalls += 1; return { email: "account@example.com" }; },
+        usage: async () => ({ rate_limit: { primary_window: { used_percent: 33, limit_window_seconds: 18000 } } }),
+        credits: async () => ({ available_count: 0, credits: [] }),
+      }) },
+      storage: { memory: (_name: string, { initial }: { initial: object }) => {
+        const [state, update] = createStore(initial);
+        return [state, (mutation: (draft: object) => void) => update(produce(mutation))];
+      }, store: (name: string, { initial }: { initial: object }) => {
+        const settings = { ...initial };
+        return [settings, async (update: (draft: object) => void) => {
+          if (name === "codex-limits.usage-email.v2") await saving;
+          update(settings);
+          if ("showEmail" in settings && typeof settings.showEmail === "boolean") saved.push(settings.showEmail);
+        }];
+      } },
+      data: { on: () => () => {} },
+      theme: { text: { base: "white" } },
+      keymap: { layer: (register: () => { commands: { id: string; run: () => Promise<void> }[] }) => {
+        toggle = register().commands.find((command) => command.id === "codex-account-emails")!.run;
+      } },
+      ui: {
+        slot: ({ append, render }: { append: string; render: () => unknown }) => {
+          if (append === "app") render();
+          if (append === (displayMode === "compact-footer" ? "prompt.footer" : "sidebar.content")) sidebar = render;
+          return () => {};
+        },
+        model: { current: () => ({ providerID: "openai" }) },
+        toast: { show: () => {} },
+      },
+    });
+    return sidebar();
+  }, ui.renderer);
+  try {
+    await ui.waitFor(() => ui.captureCharFrame().includes("account@example.com"));
+    const mounted = ui.renderer.root.getChildren()[0];
+    const initialCalls = identityCalls;
+    const hide = toggle();
+    await ui.flush();
+    assert.doesNotMatch(ui.captureCharFrame(), /account@example.com/);
+    const show = toggle();
+    await ui.flush();
+    assert.match(ui.captureCharFrame(), /account@example.com/);
+    assert.equal(identityCalls, initialCalls);
+    const hideAgain = toggle();
+    await ui.flush();
+    assert.doesNotMatch(ui.captureCharFrame(), /account@example.com/);
+    assert.deepEqual(saved, []);
+    releaseSave();
+    await Promise.all([hide, show, hideAgain]);
+    assert.deepEqual(saved, [false, true, false]);
+    assert.equal(ui.renderer.root.getChildren()[0], mounted);
+  } finally { releaseSave(); dispose(); ui.renderer.destroy(); }
+});
 
 for (const version of [1, 2]) test(`V${version} rendered menu retains its mounted rows and keyboard focus after toggles`, async () => {
   const ui = await createTestRenderer({ width: 90, height: 20 });
