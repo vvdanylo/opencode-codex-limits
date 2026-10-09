@@ -1,5 +1,4 @@
 import { registerStatusV2 } from "./status-v2.tsx";
-import { createSignal } from "solid-js";
 import { randomUUID } from "node:crypto";
 import { availableResetExpiries, displayText } from "./display.ts";
 import { codexRpc } from "./connection-rpc.ts";
@@ -58,11 +57,17 @@ const v2 = {
     const text = messages[locale];
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
-    const [accountEmail, setAccountEmail] = createSignal<string>();
-    const loadIdentity = async () => {
-      try { setAccountEmail((await rpc.identity({})).email); }
-      catch (error) { setAccountEmail(undefined); throw error; }
+    // OpenCode's account picker displays credential labels. Add the email only
+    // to default labels; names chosen by the user remain untouched.
+    const labelAccounts = async () => {
+      const { accounts } = await rpc.accounts({}) as { accounts: Array<{ id: string; label: string; email: string }> };
+      for (const account of accounts) {
+        if (!/^(?:OAuth|OpenAI(?: \d+)?)$/.test(account.label)) continue;
+        await context.client.credential.update({ credentialID: account.id, label: `${account.email} (${account.label})` });
+      }
     };
+    void labelAccounts().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
+    const loadIdentity = () => rpc.identity({});
     const loadUsage = () => rpc.usage({});
     const loadResetCredits = () => rpc.credits({});
     const loadCurrentStatus = async () => {
@@ -101,7 +106,7 @@ const v2 = {
       if (connect.id) context.keymap.dispatch(connect.id);
       else void connect.run();
     };
-    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect, accountEmail);
+    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
