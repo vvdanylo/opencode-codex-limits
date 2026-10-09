@@ -1,4 +1,5 @@
 import { registerStatusV2 } from "./status-v2.tsx";
+import { createSignal } from "solid-js";
 import { randomUUID } from "node:crypto";
 import { availableResetExpiries, displayText } from "./display.ts";
 import { codexRpc } from "./connection-rpc.ts";
@@ -57,6 +58,7 @@ const v2 = {
     const text = messages[locale];
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
+    const [accountEmail, setAccountEmail] = createSignal<string>();
     // Reset the earlier default-on preference; account names stay private by default.
     const [accountSettings, updateAccountSettings] = context.storage.store("codex-limits.account-labels.v2", {
       initial: { showEmail: false },
@@ -84,7 +86,10 @@ const v2 = {
     const stopCredentialLabels = context.data.on("credential.updated", () => {
       void queueAccountLabels().catch((error) => console.error("[codex-limits] Could not label OpenAI accounts", error));
     });
-    const loadIdentity = () => rpc.identity({});
+    const loadIdentity = async () => {
+      try { setAccountEmail((await rpc.identity({})).email); }
+      catch (error) { setAccountEmail(undefined); throw error; }
+    };
     const loadUsage = () => rpc.usage({});
     const loadResetCredits = () => rpc.credits({});
     const loadCurrentStatus = async () => {
@@ -123,7 +128,7 @@ const v2 = {
       if (connect.id) context.keymap.dispatch(connect.id);
       else void connect.run();
     };
-    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect);
+    const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect, accountEmail);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message
