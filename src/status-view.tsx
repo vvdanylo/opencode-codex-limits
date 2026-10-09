@@ -17,6 +17,17 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
   const color = (remaining?: number) => remaining === undefined ? props.colors().muted
     : remaining < 20 ? props.colors().error : remaining < 50 ? props.colors().warning : props.colors().success;
   const resets = () => resetDisplay(status.getSettings(), status.usage()?.resets, status.usage()?.resetExpiries ?? [], status.now(), props.locale);
+  const inlineDate = (resetAt: number) => formatLimitReset(resetAt, "absolute", status.now(), props.locale)
+    .replace(/\s+(?:at|о)\s+/, " ");
+  const inlineWait = (resetAt: number) => {
+    const remaining = resetAt - status.now();
+    if (remaining <= 0) return "";
+    if (remaining < 86400_000) return formatLimitReset(resetAt, "countdown", status.now(), props.locale)
+      .replace(/^(?:in |через )/, "");
+    const hours = Math.ceil(remaining / 3600_000);
+    const days = Math.floor(hours / 24);
+    return `${days}${text.day}${hours % 24 ? ` ${hours % 24}${text.hour}` : ""}`;
+  };
   const label = (value: string) => value === "Weekly" ? (props.locale === "uk" ? "7д" : "7d")
     : value === "5h" && props.locale === "uk" ? "5г" : value;
   const tight = () => width() < 50 && Boolean(resets().count || resets().expiry);
@@ -32,14 +43,14 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
       {email() && <text fg="#64b5f6">{email()}</text>}
       {(status.usage()?.windows ?? []).map((window) => (
         <box flexDirection="row" width="100%">
-          <text width={10} fg="#64b5f6">{window.label}</text>
-          <text width={6} fg={color(window.remainingPercent)}>{window.remaining}</text>
-          <text fg={props.colors().muted}>
+          <text width={7} fg="#64b5f6">{window.label}</text>
+          <text width={4} fg={color(window.remainingPercent)}>{window.remaining}</text>
+          <text fg={props.colors().muted} wrapMode="none">
             {window.resetAt === undefined ? window.reset
-              : formatLimitReset(window.resetAt, timeFormat(status.getSettings()), status.now(), props.locale)}
+              : timeFormat(status.getSettings()) === "absolute" ? inlineDate(window.resetAt)
+                : formatLimitReset(window.resetAt, "countdown", status.now(), props.locale)}
             {window.resetAt !== undefined && timeFormat(status.getSettings()) === "absolute" &&
-              <span style={{ fg: "#64b5f6" }}> ({formatLimitReset(window.resetAt, "countdown", status.now(), props.locale)
-                .replace(/^(?:in |через )/, "")})</span>}
+              inlineWait(window.resetAt) && <span style={{ fg: "#64b5f6" }}> ({inlineWait(window.resetAt)})</span>}
           </text>
         </box>
       ))}
