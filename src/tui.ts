@@ -57,8 +57,9 @@ const v2 = {
     const text = messages[locale];
     const toast = context.ui.toast.show;
     const rpc = context.client.rpc(codexRpc) as any;
-    const [accountSettings, updateAccountSettings] = context.storage.store("codex-limits.account-labels", {
-      initial: { showEmail: true },
+    // Reset the earlier default-on preference; account names stay private by default.
+    const [accountSettings, updateAccountSettings] = context.storage.store("codex-limits.account-labels.v2", {
+      initial: { showEmail: false },
     });
     // The native picker displays saved credential labels. Restore only labels
     // created by this plugin, and leave user-supplied names untouched.
