@@ -24,8 +24,8 @@ export function createStatusController(input: {
     return input.modes.includes(value) ? value : "panel";
   };
   const visible = () => mode() !== "hidden" && input.active();
-  const refresh = async () => {
-    if (disposed || busy || !visible()) return;
+  const refresh = async (force = false) => {
+    if (disposed || busy || (!force && !visible())) return;
     busy = true;
     try {
       const result = await load();
@@ -38,7 +38,10 @@ export function createStatusController(input: {
     } finally { busy = false; }
   };
   const ensureLoaded = () => {
-    if (!usage() && !error() && !busy) void refresh();
+    if (!usage() && !error() && !busy) void refresh(true);
+  };
+  const failLoading = () => {
+    if (!disposed && !usage() && !error()) setError("Codex limits did not load. Try /codex-limits to retry.");
   };
   const update = (change: (settings: DisplaySettings) => void) => {
     const operation = pending.then(async () => {
@@ -60,7 +63,7 @@ export function createStatusController(input: {
   timer.unref?.();
   const unsubscribe = input.subscribe(() => void refresh());
   return {
-    usage, error, now, renderVersion, mode, visible, refresh, ensureLoaded, getSettings, modes: input.modes,
+    usage, error, now, renderVersion, mode, visible, refresh, ensureLoaded, failLoading, getSettings, modes: input.modes,
     invalidate: () => setRenderVersion((version) => version + 1),
     setMode: async (value: DisplayMode) => {
       if (!validDisplayMode(value) || !input.modes.includes(value)) throw new Error(`Unsupported display mode: ${value}`);

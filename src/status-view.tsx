@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal, Show } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { compactResetText, displayText, formatLimitReset, resetDisplay, timeFormat } from "./display.ts";
 import type { StatusControls } from "./status-controller.ts";
 
@@ -9,6 +9,11 @@ export function StatusView(props: { status: StatusControls; compact?: boolean; l
   const [width, setWidth] = createSignal(80);
   const text = displayText[props.locale];
   const status = props.status;
+  onMount(() => {
+    status.ensureLoaded();
+    const timeout = setTimeout(status.failLoading, 18_000);
+    onCleanup(() => clearTimeout(timeout));
+  });
   const email = () => { status.renderVersion(); return props.accountEmail?.(); };
   const reconnectNeeded = () => /sign-in required|session expired|rejected this session|connect an openai oauth account|сеанс.+закінчився|відхилив сеанс|\b401\b/i.test(status.error() ?? "");
   const errorText = () => reconnectNeeded() && props.onReconnect
