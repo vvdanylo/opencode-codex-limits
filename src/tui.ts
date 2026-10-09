@@ -62,6 +62,7 @@ const v2 = {
     const [emailSettings, updateEmailSettings] = context.storage.store("codex-limits.usage-email.v2", {
       initial: { showEmail: true },
     });
+    const [showEmail, setShowEmail] = createSignal(emailSettings.showEmail !== false);
     const loadIdentity = async () => {
       try { setAccountEmail((await rpc.identity({})).email); }
       catch (error) { setAccountEmail(undefined); throw error; }
@@ -105,7 +106,7 @@ const v2 = {
       else void connect.run();
     };
     const status = registerStatusV2(context, loadCurrentStatus, locale, reconnect,
-      () => emailSettings.showEmail ? accountEmail() : undefined);
+      () => showEmail() ? accountEmail() : undefined);
     const labels = displayText[locale];
     const showError = (error: unknown) => {
       const message = error instanceof Error ? error.message
@@ -131,11 +132,12 @@ const v2 = {
           palette: true,
           slash: { name: "codex-account-emails" },
           run: async () => {
+            const next = !showEmail();
+            setShowEmail(next);
             try {
-              const showEmail = !emailSettings.showEmail;
-              await updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = showEmail; });
-              toast({ message: showEmail ? "Usage email shown" : "Usage email hidden", variant: "info" });
-            } catch (error) { showError(error); }
+              await updateEmailSettings((draft: { showEmail: boolean }) => { draft.showEmail = next; });
+              toast({ message: next ? "Usage email shown" : "Usage email hidden", variant: "info" });
+            } catch (error) { setShowEmail(!next); showError(error); }
           },
         },
         {
