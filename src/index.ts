@@ -37,7 +37,7 @@ export default {
       await context.rpc.register(codexRpc, {
         identity: async () => ({ email: emailFromToken((await credential()).access) }),
         accounts: async () => {
-          const { data } = await context.client.integration.get({ integrationID: "openai" });
+          const { data } = await context.integration.get({ integrationID: "openai" });
           const accounts = await Promise.all(data.connections.map(async (connection) => {
             if (connection.type !== "credential" || connection.method !== "oauth") return undefined;
             try {
